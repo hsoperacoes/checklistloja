@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -10,7 +11,15 @@
 </style>
 </head>
 <body>
-<div id="login" class="login"><div class="loginCard"><div class="brand">HS<small>CENTRAL</small></div><h1>Checklist Visita Lojas</h1><div class="muted">Acesso por filial ou administrador</div><div class="field"><label>USUÁRIO</label><input id="loginUser" class="input" autocomplete="username" placeholder="Ex.: moda, ponto, leo"></div><div class="field"><label>SENHA</label><input id="loginPass" type="password" class="input" autocomplete="current-password" placeholder="Senha"></div><button class="btn primary full" onclick="login()">Entrar</button><p class="muted" style="font-size:12px;margin-top:18px">Senha inicial: <b>hs</b></p></div></div>
+<div id="login" class="login"><div class="loginCard"><div class="brand">HS<small>CENTRAL</small></div><h1>Checklist Visita Lojas</h1><div class="muted">Acesso por filial ou administrador</div>
+<div id="setupApi" class="card" style="margin:18px 0;padding:14px;display:none">
+  <b>Conectar ao banco</b>
+  <div class="muted" style="font-size:12px;margin:4px 0 10px">Cole abaixo a URL /exec da implantação do Apps Script. Isso é necessário somente na primeira vez neste aparelho.</div>
+  <div class="field" style="margin:0"><input id="apiInput" class="input" placeholder="https://script.google.com/macros/s/.../exec"></div>
+  <button class="btn primary full" style="margin-top:8px" onclick="saveApiUrl()">Salvar conexão</button>
+</div>
+<div id="loginError" style="display:none;margin:14px 0;padding:11px 12px;border:1px solid #6a3340;background:#351b24;border-radius:10px;color:#ffabb2;font-weight:700"></div>
+<div class="field"><label>USUÁRIO</label><input id="loginUser" class="input" autocomplete="username" placeholder="Ex.: moda, ponto, leo"></div><div class="field"><label>SENHA</label><input id="loginPass" type="password" class="input" autocomplete="current-password" placeholder="Senha"></div><button class="btn primary full" onclick="login()">Entrar</button><p class="muted" style="font-size:12px;margin-top:18px">Senha inicial: <b>hs</b></p></div></div>
 <div id="system" class="hidden">
  <div class="mobileTop"><div class="brand">HS<small>CENTRAL</small></div><span id="mobileWho" class="chip"></span></div>
  <div class="shell"><aside class="side"><div class="brand">HS<small>CENTRAL</small></div><div id="nav" class="nav"></div></aside><main id="main" class="main"></main></div>
@@ -20,12 +29,13 @@
 <div id="loading" class="loading hidden"><div class="spinner"></div></div><div id="toast" class="toast hidden"></div>
 <script>
 // COLE AQUI A URL /exec DA IMPLANTAÇÃO DO APPS SCRIPT
-const API_URL = 'https://script.google.com/macros/s/AKfycbzo7EwAAg5B-6gn-NwZ88LR0I_vLrX9-XHmt1jkNb5EVc39ajV2fvQU4JBK3WSesHki/exec';
+const API_URL_FIXA = 'https://script.google.com/macros/s/AKfycbzo7EwAAg5B-6gn-NwZ88LR0I_vLrX9-XHmt1jkNb5EVc39ajV2fvQU4JBK3WSesHki/exec';
+let API_URL = API_URL_FIXA.startsWith('https://script.google.com/') ? API_URL_FIXA : (localStorage.getItem('hs_check_api_url')||'');
 const S={token:localStorage.getItem('hs_check_token')||'',user:null,data:null,page:'inicio',draft:null,saveTimer:null};
 const $=s=>document.querySelector(s), esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
 function load(on=true){$('#loading').classList.toggle('hidden',!on)} function toast(t){const e=$('#toast');e.textContent=t;e.classList.remove('hidden');setTimeout(()=>e.classList.add('hidden'),3000)}
-async function api(api,p={}){if(!API_URL.startsWith('https://script.google.com/')) throw new Error('Configure a API_URL no index.html.'); const body={api,token:S.token,...p}; const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)}); const j=await r.json(); if(!j.ok) throw new Error(j.message||'Não foi possível concluir.'); return j}
-async function login(){try{load();const j=await api('login',{usuario:$('#loginUser').value,senha:$('#loginPass').value});S.token=j.token;S.user=j.user;localStorage.setItem('hs_check_token',S.token);await boot();}catch(e){toast(e.message)}finally{load(false)}}
+async function api(api,p={}){if(!API_URL.startsWith('https://script.google.com/')) throw new Error('Conecte o site ao Apps Script primeiro.');const body={api,token:S.token,...p};let r;try{r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body),redirect:'follow'});}catch(_){throw new Error('Não foi possível acessar o Apps Script. Confira a URL /exec e a implantação.');}let j;try{j=await r.json();}catch(_){throw new Error('O Apps Script não retornou uma resposta válida. Confira se a implantação está publicada como Aplicativo da Web.');}if(!j.ok)throw new Error(j.message||'Não foi possível concluir.');return j}
+function showLoginError(msg){const e=$('#loginError');e.textContent=msg;e.style.display='block'}function clearLoginError(){const e=$('#loginError');if(e){e.textContent='';e.style.display='none'}}function updateApiSetup(){const box=$('#setupApi');if(box)box.style.display=API_URL.startsWith('https://script.google.com/')?'none':'block'}function saveApiUrl(){const v=$('#apiInput').value.trim();if(!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec(?:\?.*)?$/.test(v))return showLoginError('Cole a URL completa da implantação terminada em /exec.');localStorage.setItem('hs_check_api_url',v);API_URL=v;clearLoginError();updateApiSetup();toast('Conexão salva. Agora faça o login.')}async function login(){clearLoginError();if(!API_URL.startsWith('https://script.google.com/')){updateApiSetup();return showLoginError('Primeiro conecte o site à URL /exec do Apps Script.');}const usuario=$('#loginUser').value.trim(),senha=$('#loginPass').value;if(!usuario||!senha)return showLoginError('Informe usuário e senha.');try{load();const j=await api('login',{usuario,senha});S.token=j.token;S.user=j.user;localStorage.setItem('hs_check_token',S.token);await boot();}catch(e){showLoginError(e.message)}finally{load(false)}}
 async function boot(){try{load();const j=await api('bootstrap');S.data=j;S.user=j.user;S.draft=j.rascunho||null;$('#login').classList.add('hidden');$('#system').classList.remove('hidden');$('#mobileWho').textContent=S.user.perfil==='ADMIN'?'Léo':S.user.filialNome;renderNav();go('inicio')}catch(e){logout(false);toast(e.message)}finally{load(false)}}
 function logout(show=true){S.token='';S.user=null;S.data=null;localStorage.removeItem('hs_check_token');$('#system').classList.add('hidden');$('#login').classList.remove('hidden');if(show)toast('Sessão encerrada.')} 
 function navItems(){return S.user.perfil==='ADMIN'?[['inicio','Início'],['pendencias','Pendências'],['historico','Histórico'],['usuarios','Usuários e senhas'],['avisos','Avisos']]:[['inicio','Início'],['checklist','Checklist'],['pendencias','Pendências'],['historico','Histórico'],['senha','Minha senha']]} 
@@ -57,7 +67,7 @@ function renderAvisos(){const fs=S.data.filiais, cfg=S.data.configAviso||{};$('#
 async function notice(cod,acao,dias){try{load();await api('adiarAviso',{filialCodigo:cod,acao,dias});await refresh();go('avisos');toast('Configuração atualizada.')}catch(e){toast(e.message)}finally{load(false)}} async function saveAdminEmail(){try{load();await api('salvarEmailAdmin',{email:$('#adminEmail').value});await refresh();go('avisos');toast('E-mail do administrador salvo.')}catch(e){toast(e.message)}finally{load(false)}}
 function renderMinhaSenha(){$('#main').innerHTML=top('Minha senha','Altere a senha de acesso desta filial.')+`<div class="card" style="max-width:520px"><div class="field"><label>SENHA ATUAL</label><input id="oldp" class="input" type="password"></div><div class="field"><label>NOVA SENHA</label><input id="np" class="input" type="password"></div><div class="field"><label>CONFIRMAR NOVA SENHA</label><input id="np2" class="input" type="password"></div><button class="btn primary" onclick="myPass()">Alterar senha</button></div>`} async function myPass(){const a=$('#np').value,b=$('#np2').value;if(a!==b)return toast('As senhas não conferem.');try{load();await api('alterarMinhaSenha',{senhaAtual:$('#oldp').value,novaSenha:a});toast('Senha alterada.')}catch(e){toast(e.message)}finally{load(false)}}
 async function refresh(){const j=await api('bootstrap');S.data=j;S.user=j.user;if(j.rascunho)S.draft=j.rascunho} function openModal(h){$('#modalBox').innerHTML=h;$('#modal').classList.remove('hidden')} function closeModal(){$('#modal').classList.add('hidden')} function dateBR(v,time=false){if(!v)return '-';const d=new Date(v);if(isNaN(d))return esc(v);return d.toLocaleString('pt-BR',time?{dateStyle:'short',timeStyle:'short'}:{dateStyle:'short'})}
-$('#loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')login()});if(S.token)boot();
+$('#loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')login()});updateApiSetup();if(API_URL&&S.token)boot();
 </script>
 </body>
 </html>
